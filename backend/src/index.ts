@@ -18,13 +18,25 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 // Prisma singleton imported from ./lib/prisma
 
+// Allowed origins — covers local dev + any Vercel preview/production URL
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://127.0.0.1:3000',
+  process.env.FRONTEND_URL, // set in Render dashboard: https://your-app.vercel.app
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    // Allow any vercel.app subdomain (covers all preview + production deployments)
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+    // Allow explicitly listed origins
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
 app.use(express.json());
