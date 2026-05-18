@@ -14,6 +14,17 @@ import { runEscalationCheck } from './utils/escalationEngine';
 
 dotenv.config();
 
+// ── Global crash protection ─────────────────────────────────────────────────
+// Node.js 15+ crashes on unhandled rejections by default.
+// Catch them here so a background task (seed, email, escalation)
+// never brings down the HTTP server.
+process.on('unhandledRejection', (reason) => {
+  console.error('⚠️  Unhandled Promise Rejection (caught — server stays up):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('⚠️  Uncaught Exception (caught — server stays up):', err.message);
+});
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 // Prisma singleton imported from ./lib/prisma
@@ -228,16 +239,24 @@ async function ensureDemoUsers() {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 
-  // Fire-and-forget: seed and escalation engine run in background
-  // so the server starts immediately and passes Render's health check
+  // Fire-and-forget background tasks — wrapped so any error never crashes server
   setImmediate(async () => {
-    await ensureDemoUsers();
+    try {
+      await ensureDemoUsers();
+    } catch (e) {
+      console.error('⚠️  Seed error (non-fatal):', e);
+    }
 
-    // Start escalation engine 10s after boot, then every hour
     setTimeout(async () => {
-      await runEscalationCheck();
-      setInterval(runEscalationCheck, 60 * 60 * 1000);
-      console.log('⚡ Escalation engine scheduled (hourly)');
+      try {
+        await runEscalationCheck();
+        setInterval(async () => {
+          try { await runEscalationCheck(); } catch (e) { console.error('⚠️  Escalation error:', e); }
+        }, 60 * 60 * 1000);
+        console.log('⚡ Escalation engine scheduled (hourly)');
+      } catch (e) {
+        console.error('⚠️  Escalation engine failed to start (non-fatal):', e);
+      }
     }, 10000);
   });
 });
