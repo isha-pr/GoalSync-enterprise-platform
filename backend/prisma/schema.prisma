@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  password           String
+  role               String    @default("employee") // employee | manager | admin
+  department         String
+  reportingManagerId String?
+  createdAt          DateTime  @default(now())
+
+  goals              Goal[]
+  goalApprovals      GoalApproval[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+  quarterlyCheckins  QuarterlyCheckin[]
+}
+
+model Goal {
+  id              String    @id @default(cuid())
+  userId          String
+  thrustArea      String
+  goalTitle       String
+  goalDescription String
+  uomType         String    // numeric | percentage | timeline | zero-based
+  higherIsBetter  Boolean   @default(true)
+  target          Float
+  achievement     Float     @default(0)
+  weightage       Float
+  deadline        String?
+  status          String    @default("draft") // draft | submitted | approved | rejected | rework | locked
+  progressScore   Float     @default(0)
+  isLocked        Boolean   @default(false)
+  isSharedGoal    Boolean   @default(false)
+  sharedGoalId    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id])
+  goalApprovals     GoalApproval[]
+  quarterlyCheckins QuarterlyCheckin[]
+  auditLogs         AuditLog[]
+}
+
+model GoalApproval {
+  id               String    @id @default(cuid())
+  goalId           String
+  managerId        String
+  approvalStatus   String    // approved | rejected | rework
+  approvalComments String?
+  updatedWeightage Float?
+  updatedTarget    Float?
+  approvedAt       DateTime  @default(now())
+
+  goal             Goal      @relation(fields: [goalId], references: [id])
+  manager          User      @relation(fields: [managerId], references: [id])
+}
+
+model QuarterlyCheckin {
+  id                String    @id @default(cuid())
+  goalId            String
+  userId            String
+  quarter           String    // Q1 | Q2 | Q3 | Q4
+  actualAchievement Float
+  progressStatus    String    // not-started | on-track | completed | at-risk
+  managerComment    String?
+  updatedAt         DateTime  @default(now())
+
+  goal              Goal      @relation(fields: [goalId], references: [id])
+  user              User      @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  userId     String
+  goalId     String?
+  actionType String
+  oldValue   String?
+  newValue   String?
+  changedAt  DateTime  @default(now())
+
+  user       User      @relation(fields: [userId], references: [id])
+  goal       Goal?     @relation(fields: [goalId], references: [id])
+}
+
+model SharedGoal {
+  id               String    @id @default(cuid())
+  primaryOwnerId   String
+  linkedEmployeeIds String   // JSON array as string
+  goalId           String
+  createdAt        DateTime  @default(now())
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  status    String    @default("unread") // unread | read
+  type      String    @default("info")   // info | success | warning | error
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model Escalation {
+  id              String    @id @default(cuid())
+  type            String    // OVERDUE_SUBMISSION | OVERDUE_APPROVAL | MISSING_CHECKIN
+  severity        String    // high | medium | low
+  userId          String
+  goalId          String?
+  department      String
+  reason          String
+  daysOverdue     Int       @default(0)
+  escalationLevel Int       @default(1) // 1=employee notified, 2=manager notified, 3=hr notified
+  status          String    @default("open") // open | acknowledged | resolved
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
