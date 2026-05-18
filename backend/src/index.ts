@@ -225,16 +225,21 @@ async function ensureDemoUsers() {
   }
 }
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
-  await ensureDemoUsers();
 
-  // Start escalation engine: first run 5s after boot, then every hour
-  setTimeout(async () => {
-    await runEscalationCheck();
-    setInterval(runEscalationCheck, 60 * 60 * 1000); // every 1 hour
-    console.log('⚡ Escalation engine scheduled (hourly)');
-  }, 5000);
+  // Fire-and-forget: seed and escalation engine run in background
+  // so the server starts immediately and passes Render's health check
+  setImmediate(async () => {
+    await ensureDemoUsers();
+
+    // Start escalation engine 10s after boot, then every hour
+    setTimeout(async () => {
+      await runEscalationCheck();
+      setInterval(runEscalationCheck, 60 * 60 * 1000);
+      console.log('⚡ Escalation engine scheduled (hourly)');
+    }, 10000);
+  });
 });
 
 export default app;
