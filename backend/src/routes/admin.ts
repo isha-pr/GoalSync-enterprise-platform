@@ -116,11 +116,12 @@ router.get('/all-goals', authenticate, requireRole(...ADMIN_ROLES), async (req: 
 // POST /api/admin/goals/:id/unlock
 router.post('/goals/:id/unlock', authenticate, requireRole(...ADMIN_ROLES), async (req: AuthRequest, res) => {
   try {
-    const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+    const id = req.params.id as string;
+    const goal = await prisma.goal.findUnique({ where: { id } });
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
     const updated = await prisma.goal.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { isLocked: false, status: 'approved' },
     });
 
@@ -185,27 +186,28 @@ router.get('/users', authenticate, requireRole(...ADMIN_ROLES), async (req: Auth
 // PATCH /api/admin/users/:id/role — Change user role
 router.patch('/users/:id/role', authenticate, requireRole(...ADMIN_ROLES), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const { role } = req.body;
     const validRoles = ['employee', 'manager', 'hr', 'admin'];
     if (!validRoles.includes(role))
       return res.status(400).json({ error: 'Invalid role. Valid roles: employee, manager, hr, admin' });
 
-    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Prevent downgrading own account
-    if (req.user!.id === req.params.id && !['admin', 'hr'].includes(role)) {
+    if (req.user!.id === id && !['admin', 'hr'].includes(role)) {
       return res.status(400).json({ error: 'Cannot change your own admin/HR role to a lower role' });
     }
 
-    const updated = await prisma.user.update({ where: { id: req.params.id }, data: { role } });
+    const updated = await prisma.user.update({ where: { id }, data: { role } });
     await createAuditLog(req.user!.id, null, 'ROLE_CHANGED',
-      { role: user.role }, { role, userId: req.params.id, name: user.name });
+      { role: user.role }, { role, userId: id, name: user.name });
 
     // Notify user of role change
     await prisma.notification.create({
       data: {
-        userId: req.params.id,
+        userId: id,
         title: '🔄 Role Updated',
         message: `Your account role has been updated to ${role} by the administrator.`,
         type: 'info',
@@ -222,27 +224,28 @@ router.patch('/users/:id/role', authenticate, requireRole(...ADMIN_ROLES), async
 // PATCH /api/admin/users/:id/toggle-active — Activate / Deactivate account
 router.patch('/users/:id/toggle-active', authenticate, requireRole(...ADMIN_ROLES), async (req: AuthRequest, res) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const id = req.params.id as string;
+    const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    if (req.user!.id === req.params.id) {
+    if (req.user!.id === id) {
       return res.status(400).json({ error: 'Cannot deactivate your own account' });
     }
 
     const currentActive = (user as any).isActive !== false;
     const updated = await (prisma.user.update as any)({
-      where: { id: req.params.id },
+      where: { id },
       data: { isActive: !currentActive },
     });
 
     await createAuditLog(req.user!.id, null,
       !currentActive ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
-      { isActive: currentActive }, { isActive: !currentActive, userId: req.params.id });
+      { isActive: currentActive }, { isActive: !currentActive, userId: id });
 
     // Notify user
     await prisma.notification.create({
       data: {
-        userId: req.params.id,
+        userId: id,
         title: !currentActive ? '✅ Account Activated' : '⛔ Account Deactivated',
         message: !currentActive
           ? 'Your GoalSync account has been activated by the administrator.'
@@ -313,7 +316,8 @@ router.get('/access-requests', authenticate, requireRole(...ADMIN_ROLES), async 
 // POST /api/admin/access-requests/:id/approve — Approve and create user account
 router.post('/access-requests/:id/approve', authenticate, requireRole(...ADMIN_ROLES), async (req: AuthRequest, res) => {
   try {
-    const notif = await prisma.notification.findUnique({ where: { id: req.params.id } });
+    const id = req.params.id as string;
+    const notif = await prisma.notification.findUnique({ where: { id } });
     if (!notif) return res.status(404).json({ error: 'Request not found' });
 
     let data: any = {};
@@ -328,7 +332,7 @@ router.post('/access-requests/:id/approve', authenticate, requireRole(...ADMIN_R
 
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) {
-      await prisma.notification.update({ where: { id: req.params.id }, data: { status: 'read' } });
+      await prisma.notification.update({ where: { id }, data: { status: 'read' } });
       return res.json({ message: 'Account already exists', tempPassword: null });
     }
 
@@ -365,7 +369,7 @@ router.post('/access-requests/:id/approve', authenticate, requireRole(...ADMIN_R
       _reviewedBy: req.user!.name,
     };
     await prisma.notification.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'read', message: JSON.stringify(updatedData) },
     });
 
@@ -396,8 +400,9 @@ router.post('/access-requests/:id/approve', authenticate, requireRole(...ADMIN_R
 // POST /api/admin/access-requests/:id/reject — Reject access request with reason
 router.post('/access-requests/:id/reject', authenticate, requireRole(...ADMIN_ROLES), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const { reason } = req.body;
-    const notif = await prisma.notification.findUnique({ where: { id: req.params.id } });
+    const notif = await prisma.notification.findUnique({ where: { id } });
     if (!notif) return res.status(404).json({ error: 'Request not found' });
 
     let data: any = {};
@@ -417,12 +422,12 @@ router.post('/access-requests/:id/reject', authenticate, requireRole(...ADMIN_RO
     };
 
     await prisma.notification.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'read', message: JSON.stringify(updatedData) },
     });
 
     await createAuditLog(req.user!.id, null, 'ACCESS_REQUEST_REJECTED', null,
-      { notifId: req.params.id, reason, reviewedBy: req.user!.name });
+      { notifId: id, reason, reviewedBy: req.user!.name });
 
     res.json({ message: 'Request rejected' });
   } catch (e: any) {

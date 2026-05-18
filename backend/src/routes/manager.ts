@@ -69,15 +69,16 @@ router.get('/stats', authenticate, requireRole('manager', 'admin'), async (req: 
 // POST /api/manager/goals/:id/approve
 router.post('/goals/:id/approve', authenticate, requireRole('manager', 'admin'), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const { approvalComments, updatedWeightage, updatedTarget } = req.body;
-    const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+    const goal = await prisma.goal.findUnique({ where: { id } });
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
     const updateData: any = { status: 'approved', isLocked: true };
     if (updatedWeightage) updateData.weightage = parseFloat(updatedWeightage);
     if (updatedTarget) updateData.target = parseFloat(updatedTarget);
 
-    const updated = await prisma.goal.update({ where: { id: req.params.id }, data: updateData });
+    const updated = await prisma.goal.update({ where: { id }, data: updateData });
 
     await prisma.goalApproval.create({
       data: {
@@ -109,11 +110,12 @@ router.post('/goals/:id/approve', authenticate, requireRole('manager', 'admin'),
 // POST /api/manager/goals/:id/reject
 router.post('/goals/:id/reject', authenticate, requireRole('manager', 'admin'), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const { approvalComments } = req.body;
-    const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+    const goal = await prisma.goal.findUnique({ where: { id } });
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
-    const updated = await prisma.goal.update({ where: { id: req.params.id }, data: { status: 'rejected' } });
+    const updated = await prisma.goal.update({ where: { id }, data: { status: 'rejected' } });
 
     await prisma.goalApproval.create({
       data: { goalId: goal.id, managerId: req.user!.id, approvalStatus: 'rejected', approvalComments },
@@ -138,11 +140,12 @@ router.post('/goals/:id/reject', authenticate, requireRole('manager', 'admin'), 
 // POST /api/manager/goals/:id/rework
 router.post('/goals/:id/rework', authenticate, requireRole('manager', 'admin'), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const { approvalComments } = req.body;
-    const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+    const goal = await prisma.goal.findUnique({ where: { id } });
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
-    const updated = await prisma.goal.update({ where: { id: req.params.id }, data: { status: 'rework' } });
+    const updated = await prisma.goal.update({ where: { id }, data: { status: 'rework' } });
 
     await prisma.goalApproval.create({
       data: { goalId: goal.id, managerId: req.user!.id, approvalStatus: 'rework', approvalComments },
@@ -167,10 +170,11 @@ router.post('/goals/:id/rework', authenticate, requireRole('manager', 'admin'), 
 // POST /api/manager/goals/:id/checkin — manager adds quarterly check-in comment
 router.post('/goals/:id/checkin', authenticate, requireRole('manager', 'admin'), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const { quarter, managerComment, actualAchievement, progressStatus } = req.body;
     const checkin = await prisma.quarterlyCheckin.create({
       data: {
-        goalId: req.params.id,
+        goalId: id,
         userId: req.user!.id,
         quarter,
         actualAchievement: parseFloat(actualAchievement),

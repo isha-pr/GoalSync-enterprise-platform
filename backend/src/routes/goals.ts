@@ -122,14 +122,15 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 // PUT /api/goals/:id — update goal
 router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+    const id = req.params.id as string;
+    const goal = await prisma.goal.findUnique({ where: { id } });
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
     if (goal.userId !== req.user!.id) return res.status(403).json({ error: 'Forbidden' });
     if (goal.isLocked) return res.status(400).json({ error: 'Goal is locked and cannot be edited' });
 
     const oldValues = { ...goal };
     const updated = await prisma.goal.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         ...req.body,
         target: req.body.target ? parseFloat(req.body.target) : undefined,
@@ -148,12 +149,13 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
 // DELETE /api/goals/:id
 router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+    const id = req.params.id as string;
+    const goal = await prisma.goal.findUnique({ where: { id } });
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
     if (goal.userId !== req.user!.id) return res.status(403).json({ error: 'Forbidden' });
     if (goal.isLocked) return res.status(400).json({ error: 'Cannot delete locked goal' });
 
-    await prisma.goal.delete({ where: { id: req.params.id } });
+    await prisma.goal.delete({ where: { id } });
     res.json({ message: 'Goal deleted' });
   } catch {
     res.status(500).json({ error: 'Server error' });
@@ -163,6 +165,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
 // POST /api/goals/:id/submit — submit goal sheet
 router.post('/:id/submit', authenticate, async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const userId = req.user!.id;
     const goals = await prisma.goal.findMany({ where: { userId } });
     const totalWeightage = goals.reduce((s, g) => s + g.weightage, 0);
@@ -172,7 +175,7 @@ router.post('/:id/submit', authenticate, async (req: AuthRequest, res) => {
     }
 
     const goal = await prisma.goal.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'submitted' },
     });
 
@@ -244,15 +247,16 @@ router.post('/submit-all', authenticate, async (req: AuthRequest, res) => {
 // POST /api/goals/:id/checkin — add quarterly check-in
 router.post('/:id/checkin', authenticate, async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const { quarter, actualAchievement, progressStatus } = req.body;
-    const goal = await prisma.goal.findUnique({ where: { id: req.params.id } });
+    const goal = await prisma.goal.findUnique({ where: { id } });
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
 
     const progressScore = calcProgressScore(goal.uomType, goal.higherIsBetter, goal.target, parseFloat(actualAchievement));
 
     const checkin = await prisma.quarterlyCheckin.create({
       data: {
-        goalId: req.params.id,
+        goalId: id,
         userId: req.user!.id,
         quarter,
         actualAchievement: parseFloat(actualAchievement),
@@ -262,7 +266,7 @@ router.post('/:id/checkin', authenticate, async (req: AuthRequest, res) => {
 
     // Update goal achievement + progress score
     await prisma.goal.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { achievement: parseFloat(actualAchievement), progressScore },
     });
 

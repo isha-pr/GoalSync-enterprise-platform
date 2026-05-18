@@ -35,8 +35,9 @@ router.put('/read-all', authenticate, async (req: AuthRequest, res) => {
 // PUT /api/notifications/:id/read  ← dynamic route comes after
 router.put('/:id/read', authenticate, async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     await prisma.notification.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'read' },
     });
     res.json({ message: 'Marked as read' });

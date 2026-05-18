@@ -87,8 +87,9 @@ router.post('/run', authenticate, requireRole('admin'), async (req: AuthRequest,
 // ── PUT /api/escalations/:id/acknowledge ─────────────────────
 router.put('/:id/acknowledge', authenticate, requireRole('admin', 'manager'), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const updated = await prisma.escalation.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'acknowledged' },
     });
     res.json(updated);
@@ -100,8 +101,9 @@ router.put('/:id/acknowledge', authenticate, requireRole('admin', 'manager'), as
 // ── PUT /api/escalations/:id/resolve ────────────────────────
 router.put('/:id/resolve', authenticate, requireRole('admin', 'manager'), async (req: AuthRequest, res) => {
   try {
+    const id = req.params.id as string;
     const updated = await prisma.escalation.update({
-      where: { id: req.params.id },
+      where: { id },
       data: { status: 'resolved', resolvedAt: new Date(), resolvedBy: req.user!.id },
     });
     res.json(updated);
