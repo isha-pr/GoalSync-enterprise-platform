@@ -18,7 +18,8 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
       port: Number(process.env.SMTP_PORT) || 587,
       secure: false,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
+      family: 4, // Force IPv4 — Render cannot reach SMTP via IPv6 (ENETUNREACH)
+    } as any);
     console.log('📧 Mail: Using Gmail SMTP');
   } else {
     try {
@@ -26,7 +27,8 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
       transporter = nodemailer.createTransport({
         host: 'smtp.ethereal.email', port: 587, secure: false,
         auth: { user: testAccount.user, pass: testAccount.pass },
-      });
+        family: 4, // Force IPv4 — Render cannot reach SMTP via IPv6 (ENETUNREACH)
+      } as any);
       console.log('📧 Mail: Using Ethereal (preview at ethereal.email)');
       console.log(`📧 Test creds: ${testAccount.user} / ${testAccount.pass}`);
     } catch {
