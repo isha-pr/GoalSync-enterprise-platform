@@ -9,9 +9,9 @@
     "start": "node dist/index.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "ts-node prisma/seed.ts",
+    "db:seed": "echo Seed skipped for deployment",
     "db:studio": "prisma studio",
-    "setup": "prisma generate && prisma db push && ts-node prisma/seed.ts"
+    "setup": "prisma generate && prisma db push"
   },
   "keywords": [],
   "author": "",
