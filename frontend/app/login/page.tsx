@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotResetToken, setForgotResetToken] = useState('');
   const [forgotPreviewUrl, setForgotPreviewUrl] = useState<string|null>(null);
+  const [forgotOtp, setForgotOtp] = useState<string|null>(null); // shown when email delivery fails
   const [forgotLoading, setForgotLoading] = useState(false);
   const [ssoVisible, setSsoVisible] = useState(false);
   const [ssoStep, setSsoStep] = useState(0);
@@ -406,7 +407,7 @@ export default function LoginPage() {
       {/* Forgot Password Modal — 3-Step OTP Flow */}
       <Modal
         open={forgotOpen}
-        onCancel={()=>{ setForgotOpen(false); setForgotStep(0); setForgotEmail(''); setForgotResetToken(''); setForgotPreviewUrl(null); forgotForm.resetFields(); otpForm.resetFields(); newPwForm.resetFields(); }}
+        onCancel={()=>{ setForgotOpen(false); setForgotStep(0); setForgotEmail(''); setForgotResetToken(''); setForgotPreviewUrl(null); setForgotOtp(null); forgotForm.resetFields(); otpForm.resetFields(); newPwForm.resetFields(); }}
         footer={null}
         title={<div style={{display:'flex',alignItems:'center',gap:10}}><span style={{fontSize:18}}>🔐</span><span style={{fontWeight:800}}>Password Reset</span></div>}
         width={480}
@@ -428,8 +429,14 @@ export default function LoginPage() {
               const res = await api.post('/auth/forgot-password', {email:v.email});
               setForgotEmail(v.email);
               setForgotPreviewUrl(res.data.previewUrl || null);
+              if (res.data.emailDeliveryFailed && res.data.otp) {
+                setForgotOtp(res.data.otp);
+                message.warning('Email delivery failed — your OTP is shown below. Use it to continue.');
+              } else {
+                setForgotOtp(null);
+                message.success('OTP sent! Check your inbox.');
+              }
               setForgotStep(1);
-              message.success('OTP sent to your email!');
             } catch(err:any){
               const msg = err.response?.data?.message || 'Failed to send OTP.';
               message.error(msg);
@@ -461,13 +468,23 @@ export default function LoginPage() {
               message.error(err.response?.data?.message || 'Invalid OTP.');
             } finally { setForgotLoading(false); }
           }}>
-            <div style={{background:'#EFF4EF',border:'1px solid #B5C8B5',borderRadius:10,padding:'14px 18px',marginBottom:20}}>
-              <p style={{margin:0,fontSize:13,color:'#291C0E',fontWeight:600}}>✅ OTP sent to <strong>{forgotEmail}</strong></p>
-              <p style={{margin:'6px 0 0',fontSize:12,color:'#3A5A3A'}}>Check your inbox and spam folder. Valid for 15 minutes.</p>
-              {forgotPreviewUrl && (
-                <p style={{margin:'8px 0 0',fontSize:12}}>
-                  📧 <a href={forgotPreviewUrl} target="_blank" rel="noreferrer" style={{color:'#6E473B',fontWeight:600}}>Preview test email (Ethereal)</a>
-                </p>
+            <div style={{background: forgotOtp ? '#FEF3C7' : '#EFF4EF', border:`1px solid ${forgotOtp ? '#F59E0B' : '#B5C8B5'}`,borderRadius:10,padding:'14px 18px',marginBottom:20}}>
+              {forgotOtp ? (
+                <>
+                  <p style={{margin:0,fontSize:13,color:'#92400E',fontWeight:700}}>⚠️ Email delivery failed — use this OTP to continue:</p>
+                  <div style={{fontSize:36,fontWeight:900,letterSpacing:10,fontFamily:'monospace',color:'#291C0E',textAlign:'center',margin:'10px 0',background:'#fff',borderRadius:8,padding:'10px 0'}}>{forgotOtp}</div>
+                  <p style={{margin:0,fontSize:11,color:'#92400E',textAlign:'center'}}>Copy this OTP and enter it below · Valid for 15 minutes</p>
+                </>
+              ) : (
+                <>
+                  <p style={{margin:0,fontSize:13,color:'#291C0E',fontWeight:600}}>✅ OTP sent to <strong>{forgotEmail}</strong></p>
+                  <p style={{margin:'6px 0 0',fontSize:12,color:'#3A5A3A'}}>Check your inbox and spam folder. Valid for 15 minutes.</p>
+                  {forgotPreviewUrl && (
+                    <p style={{margin:'8px 0 0',fontSize:12}}>
+                      📧 <a href={forgotPreviewUrl} target="_blank" rel="noreferrer" style={{color:'#6E473B',fontWeight:600}}>Preview test email (Ethereal)</a>
+                    </p>
+                  )}
+                </>
               )}
             </div>
             <Form.Item name="otp" label="Enter 6-Digit OTP" rules={[{required:true,message:'OTP required'},{len:6,message:'OTP must be 6 digits'}]}>
@@ -546,7 +563,7 @@ export default function LoginPage() {
             </p>
             <Button type="primary" size="large" block
               style={{fontWeight:700,background:'linear-gradient(135deg,#5c3d1e,#8b5e3c)',border:'none',borderRadius:10,height:46}}
-              onClick={()=>{ setForgotOpen(false); setForgotStep(0); setForgotEmail(''); setForgotResetToken(''); forgotForm.resetFields(); otpForm.resetFields(); newPwForm.resetFields(); setTab('signin'); }}>
+              onClick={()=>{ setForgotOpen(false); setForgotStep(0); setForgotEmail(''); setForgotResetToken(''); setForgotOtp(null); forgotForm.resetFields(); otpForm.resetFields(); newPwForm.resetFields(); setTab('signin'); }}>
               Sign In with New Password →
             </Button>
           </div>
