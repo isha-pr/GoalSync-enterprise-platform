@@ -215,18 +215,24 @@ router.post('/forgot-password', async (req, res) => {
     // Always log OTP to console — usable for demo/dev even without email config
     console.log(`\n🔐 [OTP] Email: ${email} | OTP: ${otp} | Valid for 15 min\n`);
 
-    // Attempt email delivery (non-blocking — never fails the response)
-    let previewUrl: string | null = null;
+    // Attempt email delivery — non-blocking, but we surface failures clearly
+    let mailResult: { ok: boolean; previewUrl?: string; error?: string } = { ok: false };
     try {
-      previewUrl = await sendPasswordResetEmail(email, user.name, otp);
+      mailResult = await sendPasswordResetEmail(email, user.name, otp);
     } catch (mailErr) {
-      console.warn('📧 Mail delivery skipped (non-critical):', (mailErr as Error).message);
+      console.warn('📧 Mail delivery exception:', (mailErr as Error).message);
     }
 
-    const response: any = {
-      message: `A 6-digit OTP has been sent to ${email}. Check your inbox (valid 15 minutes).`,
-    };
-    if (previewUrl) response.previewUrl = previewUrl;
+    const response: any = mailResult.ok
+      ? { message: `OTP sent to ${email}. Check your inbox (and spam folder). Valid for 15 minutes.` }
+      : {
+          message: `OTP generated but email delivery failed. Check your spam folder, or use the OTP below (dev/demo mode).`,
+          emailDeliveryFailed: true,
+          // Only include OTP in response when email actually failed — remove this in strict production
+          otp,
+        };
+
+    if (mailResult.previewUrl) response.previewUrl = mailResult.previewUrl;
 
     res.json(response);
   } catch (e: any) {

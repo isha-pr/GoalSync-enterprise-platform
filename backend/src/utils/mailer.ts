@@ -10,6 +10,27 @@ const isConfigured = !!(
 
 let transporter: nodemailer.Transporter | null = null;
 
+// Race Ethereal account creation against a 5-second timeout so a slow/offline
+// ethereal.email never causes a 1–2 minute hang on the forgot-password endpoint.
+function createEtherealWithTimeout(ms: number): Promise<nodemailer.Transporter> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Ethereal timeout')), ms);
+    nodemailer.createTestAccount()
+      .then(testAccount => {
+        clearTimeout(timer);
+        const t = nodemailer.createTransport({
+          host: 'smtp.ethereal.email', port: 587, secure: false,
+          auth: { user: testAccount.user, pass: testAccount.pass },
+          family: 4,
+        } as any);
+        console.log('📧 Mail: Using Ethereal (preview at ethereal.email)');
+        console.log(`📧 Test creds: ${testAccount.user} / ${testAccount.pass}`);
+        resolve(t);
+      })
+      .catch(err => { clearTimeout(timer); reject(err); });
+  });
+}
+
 async function getTransporter(): Promise<nodemailer.Transporter> {
   if (transporter) return transporter;
   if (isConfigured) {
@@ -23,16 +44,9 @@ async function getTransporter(): Promise<nodemailer.Transporter> {
     console.log('📧 Mail: Using Gmail SMTP');
   } else {
     try {
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email', port: 587, secure: false,
-        auth: { user: testAccount.user, pass: testAccount.pass },
-        family: 4, // Force IPv4 — Render cannot reach SMTP via IPv6 (ENETUNREACH)
-      } as any);
-      console.log('📧 Mail: Using Ethereal (preview at ethereal.email)');
-      console.log(`📧 Test creds: ${testAccount.user} / ${testAccount.pass}`);
+      transporter = await createEtherealWithTimeout(5000);
     } catch {
-      // Ethereal unreachable — fall back to console-only transport
+      // Ethereal unreachable or timed out — fall back to console-only transport
       console.warn('📧 Mail: Ethereal unavailable — using console fallback (OTP will be logged)');
       transporter = nodemailer.createTransport({ jsonTransport: true });
     }
@@ -71,24 +85,27 @@ function infoBox(content: string, bg = '#FDF9F5', border = '#DBC9A8'): string {
   return `<div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:16px 20px;margin:16px 0;">${content}</div>`;
 }
 
-async function send(to: string, subject: string, html: string): Promise<string | null> {
+interface SendResult { ok: boolean; previewUrl?: string; error?: string; }
+
+async function send(to: string, subject: string, html: string): Promise<SendResult> {
   try {
     const t = await getTransporter();
     const info = await t.sendMail({ from: FROM, to, subject, html });
     const preview = nodemailer.getTestMessageUrl(info);
     if (preview) {
       console.log(`📧 Preview: ${preview}`);
-      return preview as string;
+      return { ok: true, previewUrl: preview as string };
     }
-    return null;
-  } catch (err) {
-    console.error('📧 Mail send error:', err);
-    return null;
+    console.log(`📧 Mail sent successfully to ${to}`);
+    return { ok: true };
+  } catch (err: any) {
+    console.error('📧 Mail send error:', err?.message || err);
+    return { ok: false, error: err?.message || 'Unknown mail error' };
   }
 }
 
 // ── 1. Password Reset ────────────────────────────────────────────────────────
-export async function sendPasswordResetEmail(to: string, name: string, otp: string): Promise<string | null> {
+export async function sendPasswordResetEmail(to: string, name: string, otp: string): Promise<SendResult> {
   const body = `
     <p style="margin:0 0 8px;font-size:16px;color:#2d1a0a;font-weight:700;">Hello, ${name} 👋</p>
     <p style="margin:0 0 20px;color:#7a5c3a;font-size:14px;line-height:1.6;">We received a password reset request for your GoalSync account.</p>
